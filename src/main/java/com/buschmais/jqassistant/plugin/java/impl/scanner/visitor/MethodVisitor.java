@@ -1,7 +1,13 @@
 package com.buschmais.jqassistant.plugin.java.impl.scanner.visitor;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.Deque;
 import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.Set;
+import java.util.Stack;
 
 import com.buschmais.jqassistant.plugin.java.api.model.AnnotationValueDescriptor;
 import com.buschmais.jqassistant.plugin.java.api.model.FieldDescriptor;
@@ -11,12 +17,15 @@ import com.buschmais.jqassistant.plugin.java.api.model.TypeDescriptor;
 import com.buschmais.jqassistant.plugin.java.api.model.VariableDescriptor;
 import com.buschmais.jqassistant.plugin.java.api.scanner.SignatureHelper;
 import com.buschmais.jqassistant.plugin.java.api.scanner.TypeCache;
+import com.buschmais.jqassistant.plugin.java.api.scanner.TypeCache.CachedType;
 
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.TypePath;
 import org.objectweb.asm.signature.SignatureReader;
 import org.objectweb.asm.signature.SignatureVisitor;
+import org.objectweb.asm.tree.AbstractInsnNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +49,7 @@ public class MethodVisitor extends org.objectweb.asm.MethodVisitor {
     private Integer firstLineNumber = null;
     private Integer lastLineNumber = null;
     private Set<Integer> effectiveLines = new HashSet<>();
+    private ThrowableContext throwableContext = new ThrowableContext();
 
     protected MethodVisitor(TypeCache.CachedType containingType, MethodDescriptor methodDescriptor, VisitorHelper visitorHelper,
             DependentTypeSignatureVisitor dependentTypeSignatureVisitor) {
@@ -49,6 +59,7 @@ public class MethodVisitor extends org.objectweb.asm.MethodVisitor {
         this.visitorHelper = visitorHelper;
         this.dependentTypeSignatureVisitor = dependentTypeSignatureVisitor;
     }
+
 
     @Override
     public org.objectweb.asm.AnnotationVisitor visitParameterAnnotation(final int parameter, final String desc, final boolean visible) {
@@ -71,7 +82,24 @@ public class MethodVisitor extends org.objectweb.asm.MethodVisitor {
 
     @Override
     public void visitTypeInsn(final int opcode, final String type) {
-        visitorHelper.resolveType(SignatureHelper.getObjectType(type), containingType);
+        String objectType = SignatureHelper.getObjectType(type);
+        CachedType cachedType = visitorHelper.resolveType(objectType, containingType);
+
+        if (Opcodes.NEW == opcode) {
+            try {
+                Class<?> aClass = Thread.currentThread().getContextClassLoader().loadClass(objectType);
+
+                if (Throwable.class.isAssignableFrom(aClass)) {
+                    System.out.println("Ist ne Exception");
+                    throwableContext.candidate = aClass;
+                }
+                System.out.println(aClass);
+            } catch (ClassNotFoundException e) {
+                e.printStackTrace();
+            }
+
+        }
+
     }
 
     @Override
@@ -90,6 +118,29 @@ public class MethodVisitor extends org.objectweb.asm.MethodVisitor {
             break;
         }
     }
+
+
+    @Override
+    public void visitInsn(int opcode) {
+        System.out.println("OPCODE="+opcode);
+        if (Opcodes.ATHROW == opcode) {
+            if (throwableContext.candidate == null) {
+                throw new IllegalStateException("No candidate found for ATHROW");
+            }
+
+            throwableContext.push(throwableContext.candidate);
+            throwableContext.candidate = null;
+        }
+
+        if (Opcodes.AASTORE == opcode) {
+            throwableContext.candidate = null;
+            throwableContext.throwables.poll();
+        }
+
+        super.visitInsn(opcode);
+    }
+
+
 
     @Override
     public void visitMethodInsn(final int opcode, final String owner, final String name, final String desc, boolean itf) {
@@ -189,6 +240,23 @@ public class MethodVisitor extends org.objectweb.asm.MethodVisitor {
         }
         if (!effectiveLines.isEmpty()) {
             methodDescriptor.setEffectiveLineCount(effectiveLines.size());
+        }
+
+        throwableContext.reset();
+    }
+
+
+    private static class ThrowableContext {
+        private Queue<Class<?>> throwables = new LinkedList<>();
+        Class candidate;
+
+        void reset() {
+            candidate = null;
+            throwables.clear();;
+        }
+
+        public void push(Class<?> klass) {
+            throwables.add(klass);
         }
     }
 }

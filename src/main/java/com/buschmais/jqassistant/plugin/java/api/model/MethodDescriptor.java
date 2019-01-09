@@ -50,6 +50,18 @@ public interface MethodDescriptor extends MemberDescriptor, AbstractDescriptor {
     List<TypeDescriptor> getDeclaredThrowables();
 
     /**
+     * Returns all throwables which might be thrown at runtime.
+     *
+     * A throwable is considered to be possibly thrown if it thrown directly in the
+     * method or could be thrown by a method called within the
+     * method.
+     *
+     * @return List of throwabels possibly thrown at runtime.
+     */
+    @Relation("EFFECTIVELY_THROWS")
+    List<TypeDescriptor> getEffectiveThrowables();
+
+    /**
      * Return all read accesses to fields this method performs.
      *
      * @return All read accesses to fields this method performs.
