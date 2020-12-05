@@ -19,7 +19,11 @@ import com.buschmais.jqassistant.plugin.java.test.set.scanner.resolver.B;
 import org.junit.jupiter.api.Test;
 
 import static com.buschmais.jqassistant.plugin.java.test.matcher.TypeDescriptorMatcher.typeDescriptor;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.IsCollectionContaining.hasItem;
 import static org.junit.Assert.assertThat;
 
@@ -41,7 +45,8 @@ public class TypeResolverIT extends AbstractJavaPluginIT {
         assertThat(testResult.getColumn("t"), hasItems(typeDescriptor(A.class), typeDescriptor(B.class)));
         testResult = query("match (a:Artifact)-[:REQUIRES]->(t:Type) where a.fqn=$artifact return t",
                 MapBuilder.<String, Object> create("artifact", "a1").get());
-        assertThat(testResult.getColumn("t"), allOf(not(hasItem(typeDescriptor(A.class))), not(hasItem(typeDescriptor(B.class)))));
+        assertThat(testResult.getColumn("t"), not(hasItem(typeDescriptor(A.class))));
+        assertThat(testResult.getColumn("t"), not(hasItem(typeDescriptor(B.class))));
         store.commitTransaction();
     }
 
@@ -61,7 +66,8 @@ public class TypeResolverIT extends AbstractJavaPluginIT {
         assertThat(testResult.getColumn("t"), hasItems(typeDescriptor(A.class), typeDescriptor(B.class)));
         testResult = query("match (a:Artifact)-[:REQUIRES]->(t:Type) where a.fqn=$artifact return t",
                 MapBuilder.<String, Object> create("artifact", "a1").get());
-        assertThat(testResult.getColumn("t"), allOf(not(hasItem(typeDescriptor(A.class))), not(hasItem(typeDescriptor(B.class)))));
+        assertThat(testResult.getColumn("t"), not(hasItem(typeDescriptor(A.class))));
+        assertThat(testResult.getColumn("t"), not(hasItem(typeDescriptor(B.class))));
         store.commitTransaction();
     }
 
